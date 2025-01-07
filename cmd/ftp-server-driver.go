@@ -549,10 +549,34 @@ func (driver *ftpDriver) PutFile(ctx *ftp.Context, objPath string, data io.Reade
 		return 0, err
 	}
 
-	info, err := clnt.PutObject(context.Background(), bucket, object, data, -1, minio.PutObjectOptions{
+	n, data, err = driver.determineObjectSize(data)
+	if err != nil {
+		return 0, err
+	}
+	info, err := clnt.PutObject(context.Background(), bucket, object, data, n, minio.PutObjectOptions{
 		ContentType:          mimedb.TypeByExtension(path.Ext(object)),
 		DisableContentSha256: true,
 	})
 	n = info.Size
 	return n, err
+}
+
+func (driver *ftpDriver) determineObjectSize(data io.Reader) (n int64, reader io.Reader, err error) {
+	// Create a bytes.Buffer to store all data
+	var buf bytes.Buffer
+
+	// Create a temporary io.Reader to read data from the original data
+	// Here we use io.Copy to copy data from data to buf
+	_, err = io.Copy(&buf, data)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	// Get the size of the data
+	n = int64(buf.Len())
+
+	// Create a new io.Reader that reads data from buf
+	reader = bytes.NewReader(buf.Bytes())
+
+	return n, reader, nil
 }
